@@ -65,7 +65,7 @@ export function Sidebar() {
                 <div className="h-8 w-8 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
                   <MessageSquare className="text-white" size={16} />
                 </div>
-                <span className="font-bold text-lg tracking-tight text-white">DYAD</span>
+                <span className="font-bold text-lg tracking-tight text-white">PLATFORM</span>
               </motion.div>
             )}
           </AnimatePresence>

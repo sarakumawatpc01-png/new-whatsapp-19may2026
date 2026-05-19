@@ -177,7 +177,7 @@ export default function ChatWidget({ tenantId, config }: { tenantId: string, con
              </div>
              <div className="mt-4 flex items-center justify-center gap-4">
                 <p className="text-[9px] font-black text-gray-700 uppercase tracking-widest flex items-center gap-1.5">
-                   Powered by <Sparkles size={10} className="text-primary" /> Dyad Neural
+                   Powered by <Sparkles size={10} className="text-primary" /> Platform Neural
                 </p>
              </div>
           </div>

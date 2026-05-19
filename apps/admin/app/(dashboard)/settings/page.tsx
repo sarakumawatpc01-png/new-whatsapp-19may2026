@@ -30,7 +30,7 @@ import { toast } from 'sonner'
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('general')
-  const [platformName, setPlatformName] = useState('Dyad AI')
+  const [platformName, setPlatformName] = useState('WhatsApp AI')
   const [supportEmail, setSupportEmail] = useState('')
 
   useEffect(() => {
@@ -96,11 +96,11 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-black text-zinc-500 uppercase tracking-widest px-1">Platform Name</label>
-                    <Input defaultValue="Dyad AI" className="bg-white/5 border-white/10 rounded-xl h-12" />
+                    <Input defaultValue="WhatsApp AI" className="bg-white/5 border-white/10 rounded-xl h-12" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black text-zinc-500 uppercase tracking-widest px-1">Support Email</label>
-                    <Input defaultValue="ops@dyad.ai" className="bg-white/5 border-white/10 rounded-xl h-12" />
+                    <Input defaultValue="ops@platform.ai" className="bg-white/5 border-white/10 rounded-xl h-12" />
                   </div>
                 </div>
               </SettingsSection>
@@ -110,13 +110,13 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <label className="text-xs font-black text-zinc-500 uppercase tracking-widest px-1">Verify Token</label>
                     <div className="relative">
-                      <Input defaultValue="dyad_nexus_2024_secure_token" type="password" className="bg-white/5 border-white/10 rounded-xl h-12 pr-12" />
+                      <Input defaultValue="platform_nexus_2024_secure_token" type="password" className="bg-white/5 border-white/10 rounded-xl h-12 pr-12" />
                       <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black text-zinc-500 uppercase tracking-widest px-1">Callback URL (Auto-generated)</label>
-                    <Input defaultValue="https://api.dyad.ai/v1/whatsapp/webhook" readOnly className="bg-white/5 border-white/5 text-zinc-500 rounded-xl h-12 italic" />
+                    <Input defaultValue="https://api.platform.ai/v1/whatsapp/webhook" readOnly className="bg-white/5 border-white/5 text-zinc-500 rounded-xl h-12 italic" />
                   </div>
                 </div>
               </SettingsSection>

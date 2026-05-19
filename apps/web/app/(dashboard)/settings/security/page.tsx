@@ -124,7 +124,7 @@ export default function SecuritySettingsPage() {
                      <div className="relative">
                         <Input 
                           type={showKey ? "text" : "password"} 
-                          value="dyad_live_sk_4589230582305982305" 
+                          value="platform_live_sk_4589230582305982305" 
                           readOnly 
                           className="h-14 bg-white/[0.02] border-white/10 rounded-xl font-mono text-xs pr-12"
                         />

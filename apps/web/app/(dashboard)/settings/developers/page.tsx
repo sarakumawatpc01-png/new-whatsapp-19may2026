@@ -45,8 +45,8 @@ export default function DevelopersPage() {
   };
 
   const codeSnippets: any = {
-    javascript: `const Dyad = require('@dyad/sdk');
-const client = new Dyad.Client('your_api_key');
+    javascript: `const Platform = require('@platform/sdk');
+const client = new Platform.Client('your_api_key');
 
 async function sendNeuralMessage() {
   const response = await client.messages.send({
@@ -56,9 +56,9 @@ async function sendNeuralMessage() {
   });
   console.log(response.id);
 }`,
-    python: `import dyad
+    python: `import platform
 
-client = dyad.Client(api_key='your_api_key')
+client = platform.Client(api_key='your_api_key')
 
 response = client.messages.send(
     to='1234567890',

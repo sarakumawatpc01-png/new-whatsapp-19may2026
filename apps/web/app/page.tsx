@@ -22,7 +22,7 @@ export default function Home() {
             <MessageSquare className="text-white" size={24} />
           </div>
           <span className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
-            DYAD AI
+            WHATSAPP AI
           </span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest text-slate-400">
@@ -86,7 +86,7 @@ export default function Home() {
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none" />
           <img 
             src="/dashboard_mockup_1777875632155.png" 
-            alt="Dyad AI Dashboard" 
+            alt="WhatsApp AI Dashboard" 
             className="rounded-[32px] w-full shadow-2xl border border-white/5"
           />
         </div>

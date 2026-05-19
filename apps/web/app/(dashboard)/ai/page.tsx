@@ -316,7 +316,7 @@ export default function AISettingsPage() {
                        <div>
                           <p className="text-base font-bold text-white tracking-tight">Enterprise Shared Keys Active</p>
                           <p className="text-sm text-gray-500 leading-relaxed max-w-lg mt-1">
-                            Your account is currently utilizing the platform's high-tier infrastructure. Usage is monitored and billed directly to your Dyad balance.
+                            Your account is currently utilizing the platform's high-tier infrastructure. Usage is monitored and billed directly to your platform balance.
                           </p>
                        </div>
                     </div>

@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # ══════════════════════════════════════════════
-# Dyad AI | VPS Setup & Deployment Script
+# WhatsApp AI | VPS Setup & Deployment Script
 # ══════════════════════════════════════════════
 
 set -e
 
-echo "🚀 Starting Dyad AI Setup..."
+echo "🚀 Starting WhatsApp AI Setup..."
 
 # ── 1. Check Requirements ──────────────────────
 if ! command -v node &> /dev/null; then

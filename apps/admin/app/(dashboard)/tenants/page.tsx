@@ -226,7 +226,7 @@ export default function TenantsPage() {
                         </Avatar>
                         <div>
                           <p className="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors">{tenant.name}</p>
-                          <p className="text-xs text-zinc-500">{tenant.slug}.dyad.ai</p>
+                          <p className="text-xs text-zinc-500">{tenant.slug}.platform.ai</p>
                         </div>
                       </div>
                     </TableCell>

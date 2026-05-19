@@ -1,7 +1,7 @@
 @echo off
-title Dyad AI Start script
+title WhatsApp AI Start script
 echo ==============================================
-echo        Starting Dyad AI Platform
+echo        Starting WhatsApp AI Platform
 echo ==============================================
 echo.
 
@@ -15,7 +15,7 @@ if not exist ".env" (
 )
 
 echo [2/3] Starting local Mock Redis Server...
-start "Dyad Redis (Close this window to stop Redis)" /MIN cmd /c "node redis-local.mjs"
+start "Platform Redis (Close this window to stop Redis)" /MIN cmd /c "node redis-local.mjs"
 
 timeout /t 2 /nobreak > nul
 

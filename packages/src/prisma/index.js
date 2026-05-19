@@ -780,7 +780,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "C:\\Users\\Infinix\\dyad-apps\\curious-unicorn-snap\\packages\\src\\prisma",
+      "value": "C:\\Users\\Infinix\\platform-apps\\curious-unicorn-snap\\packages\\src\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -794,7 +794,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\Infinix\\dyad-apps\\curious-unicorn-snap\\packages\\database\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\Infinix\\platform-apps\\curious-unicorn-snap\\packages\\database\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
