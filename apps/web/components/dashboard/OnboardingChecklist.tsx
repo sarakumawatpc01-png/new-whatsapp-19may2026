@@ -63,7 +63,7 @@ export function OnboardingChecklist() {
       <div className="p-6 border-b border-white/10 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">Getting Started</h2>
-          <p className="text-sm text-gray-400 mt-1">Complete these steps to unlock the full potential of DYAD.</p>
+          <p className="text-sm text-gray-400 mt-1">Complete these steps to unlock the full potential of PLATFORM.</p>
         </div>
         <button onClick={() => setVisible(false)} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
           <X size={20} />

@@ -83,7 +83,7 @@ export default function LoginPage() {
                 <Lock size={32} />
              </div>
              <h1 className="text-4xl font-black text-white tracking-tighter">Welcome Back</h1>
-             <p className="text-slate-400 font-medium tracking-tight">Access your Dyad AI Command Center</p>
+             <p className="text-slate-400 font-medium tracking-tight">Access your WhatsApp AI Command Center</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">

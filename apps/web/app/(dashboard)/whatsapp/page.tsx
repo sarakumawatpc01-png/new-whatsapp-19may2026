@@ -49,7 +49,7 @@ export default function WhatsAppPage() {
         {
           id: 'num_1',
           displayPhone: '+91 98765 43210',
-          verifiedName: 'Dyad Business',
+          verifiedName: 'Platform Business',
           status: 'ACTIVE',
           qualityRating: 'GREEN',
           messagingLimit: '1k/day',

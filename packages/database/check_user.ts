@@ -5,7 +5,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
 const prisma = new PrismaClient();
 async function main() {
-  const users = await prisma.user.findMany({ where: { email: 'test@dyad.com' } });
+  const users = await prisma.user.findMany({ where: { email: 'test@platform.com' } });
   console.log('Users:', JSON.stringify(users, null, 2));
 }
 main().finally(() => prisma.$disconnect());

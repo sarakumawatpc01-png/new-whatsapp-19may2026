@@ -1,8 +1,8 @@
-# 🌌 Dyad AI | Next-Gen WhatsApp SaaS Platform
+# 🌌 WhatsApp AI | Next-Gen WhatsApp SaaS Platform
 
-![Dyad Banner](https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070&auto=format&fit=crop)
+![Platform Banner](https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070&auto=format&fit=crop)
 
-Dyad is an **AI-Native, Multi-Tenant WhatsApp SaaS** designed for modern retail brands and agencies. Built with a premium glassmorphism interface, it provides industrial-grade automation, intelligent CRM, and neural-engine AI support.
+Platform is an **AI-Native, Multi-Tenant WhatsApp SaaS** designed for modern retail brands and agencies. Built with a premium glassmorphism interface, it provides industrial-grade automation, intelligent CRM, and neural-engine AI support.
 
 ## 🚀 Key Features
 
@@ -66,4 +66,4 @@ Before going live for retail customers, ensure:
 This platform implements AES-256 encryption for all sensitive provider keys. Ensure your `ENCRYPTION_KEY` in `.env` is at least 32 characters long and never shared.
 
 ---
-Built with ❤️ by the Dyad AI Team.
+Built with ❤️ by the WhatsApp AI Team.

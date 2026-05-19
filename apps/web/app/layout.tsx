@@ -18,12 +18,12 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Dyad | AI-Native WhatsApp Marketing & Automation Platform",
-    template: "%s | Dyad AI"
+    default: "Platform | AI-Native WhatsApp Marketing & Automation Platform",
+    template: "%s | WhatsApp AI"
   },
   description: "Scale your business with AI-powered WhatsApp campaigns, automated support, and smart CRM. The next-generation WhatsApp SaaS for growing retail brands.",
   keywords: ["whatsapp marketing", "ai automation", "saas", "customer support", "whatsapp api", "marketing automation"],
-  authors: [{ name: "Dyad AI Team" }],
+  authors: [{ name: "WhatsApp AI Team" }],
 };
 
 export const viewport = {

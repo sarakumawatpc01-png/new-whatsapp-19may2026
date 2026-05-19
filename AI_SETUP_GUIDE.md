@@ -1,6 +1,6 @@
 # 🤖 AI Setup & Deployment Guide (For OpenCode AI Agent)
 
-This document provides specific instructions for the AI agent setting up the Dyad AI Platform.
+This document provides specific instructions for the AI agent setting up the WhatsApp AI Platform.
 
 ## 🎯 Goal
 Set up a multi-tenant WhatsApp SaaS platform with zero interference to existing systems on the host VPS.

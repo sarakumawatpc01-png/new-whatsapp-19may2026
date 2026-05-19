@@ -1,11 +1,11 @@
-# FILE 3 — DYAD MODULE PROMPTS
+# FILE 3 — PLATFORM MODULE PROMPTS
 # AI-Native WhatsApp SaaS Platform
-# One prompt per module. Copy-paste into Dyad. Build in strict order.
+# One prompt per module. Copy-paste into Platform. Build in strict order.
 # Always reference FILE_1_MASTER_BLUEPRINT.md and FILE_2_PRISMA_SCHEMA.prisma.
 
 ---
 
-# GLOBAL CONTEXT (paste this at the start of every new Dyad session)
+# GLOBAL CONTEXT (paste this at the start of every new Platform session)
 
 ```
 You are building an AI-native, multi-tenant WhatsApp SaaS platform.
@@ -1599,7 +1599,7 @@ Run: tsc --noEmit for full type check on all packages.
 
 ---
 
-# DYAD SESSION RULES (READ BEFORE EVERY SESSION)
+# PLATFORM SESSION RULES (READ BEFORE EVERY SESSION)
 
 ```
 Before starting each module:

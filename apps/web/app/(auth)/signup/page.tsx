@@ -6,7 +6,7 @@ export const viewport = {
 }
 
 export const metadata = {
-  title: 'Sign Up — Dyad AI',
+  title: 'Sign Up — WhatsApp AI',
   description: 'Initialize your AI-native automation workspace.',
 }
 
