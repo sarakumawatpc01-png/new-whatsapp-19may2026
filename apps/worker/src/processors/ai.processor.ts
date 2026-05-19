@@ -4,16 +4,21 @@ import { type Job, type Queue } from "bull";
 import { PrismaService } from "../prisma/prisma.service";
 import { AIOrchestrator } from "@repo/ai";
 import { getEnv } from "@repo/config";
+import { createEncryptor } from "@repo/shared";
 import * as crypto from "crypto";
 import { MessageDirection, MessageStatus, MessageType, MessageSender } from "@repo/database";
+import { RealtimePublisher } from "../realtime/realtime.publisher";
 
 @Processor("ai")
 export class AIProcessor {
   private readonly logger = new Logger(AIProcessor.name);
   private orchestrator = new AIOrchestrator();
-  private encryptionKey = getEnv().ENCRYPTION_KEY || "fallback-key-at-least-32-chars-long-!!!";
+  private readonly encryptor = createEncryptor(getEnv().ENCRYPTION_KEY);
 
-  constructor(@Inject(PrismaService) private prisma: PrismaService, @InjectQueue("whatsapp") private whatsappQueue: Queue
+  constructor(
+    @Inject(PrismaService) private prisma: PrismaService,
+    @InjectQueue("whatsapp") private whatsappQueue: Queue,
+    private realtime: RealtimePublisher
   ) {}
 
   @Process("processing")
@@ -128,6 +133,13 @@ export class AIProcessor {
         data: { lastMessageAt: new Date() }
       });
 
+      await this.realtime.publish(tenantId, "message:new", message);
+      await this.realtime.publish(tenantId, "conversation:update", {
+        id: conversationId,
+        lastMessage: message,
+        lastMessageAt: message.createdAt,
+      });
+
       await this.whatsappQueue.add("outgoing", {
         messageId: message.id,
         tenantId,
@@ -135,6 +147,9 @@ export class AIProcessor {
         to: conversation.contact.phone,
         type: "TEXT",
         body: result.content,
+      }, {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
       });
 
       this.logger.log(`AI reply sent for conversation: ${conversationId}`);
@@ -253,13 +268,6 @@ export class AIProcessor {
   }
 
   private decrypt(text: string): string {
-    const key = Buffer.from(this.encryptionKey.slice(0, 32), "utf8");
-    const textParts = text.split(":");
-    const iv = Buffer.from(textParts.shift()!, "hex");
-    const encryptedText = Buffer.from(textParts.join(":"), "hex");
-    const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    return this.encryptor.decrypt(text);
   }
 }

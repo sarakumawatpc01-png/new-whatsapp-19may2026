@@ -6,11 +6,14 @@ import { WhatsAppProcessor } from "./processors/whatsapp.processor";
 import { AIProcessor } from "./processors/ai.processor";
 import { AutomationProcessor } from "./processors/automation.processor";
 import { TriggerMatcherService } from "./processors/trigger-matcher.service";
-import { CampaignsProcessor } from "./processors/campaigns.processor";
+import { CampaignProcessor } from "./processors/campaign.processor";
 import { BillingProcessor } from "./processors/billing.processor";
 import { AnalyticsProcessor } from "./processors/analytics.processor";
 import { NotificationProcessor } from "./processors/notification.processor";
 import { WebhookProcessor } from "./processors/webhook.processor";
+import { EmailProcessor } from "./processors/email.processor";
+import { RedisModule } from "./redis/redis.module";
+import { RealtimePublisher } from "./realtime/realtime.publisher";
 import { URL } from "url";
 
 @Module({
@@ -32,6 +35,7 @@ import { URL } from "url";
       { name: "email:send" },
       { name: "webhooks" },
     ),
+    RedisModule,
     PrismaModule,
   ],
   controllers: [],
@@ -40,11 +44,13 @@ import { URL } from "url";
     AIProcessor,
     AutomationProcessor,
     TriggerMatcherService,
-    CampaignsProcessor,
+    CampaignProcessor,
     BillingProcessor,
     AnalyticsProcessor,
     NotificationProcessor,
     WebhookProcessor,
+    EmailProcessor,
+    RealtimePublisher,
   ],
 })
 export class AppModule {}

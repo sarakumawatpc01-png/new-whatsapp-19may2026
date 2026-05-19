@@ -1,28 +1,10 @@
 import { Controller, Get, Put, Body, UseGuards, Inject } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { PrismaService } from "../../prisma/prisma.service";
-import * as crypto from "crypto";
 import { getEnv } from "@repo/config";
+import { createEncryptor } from "@repo/shared";
 
-const ENCRYPTION_KEY = Buffer.from(getEnv().ENCRYPTION_KEY || "0".repeat(64), "hex");
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString("hex") + ":" + encrypted.toString("hex");
-}
-
-function decrypt(text: string): string {
-  const parts = text.split(":");
-  const iv = Buffer.from(parts.shift()!, "hex");
-  const enc = Buffer.from(parts.join(":"), "hex");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
-  let decrypted = decipher.update(enc);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
-}
+const { encrypt, decrypt } = createEncryptor(getEnv().ENCRYPTION_KEY);
 
 function maskSecret(val: string | null | undefined): string {
   if (!val) return "";

@@ -1,8 +1,8 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AIOrchestrator, AIFactory } from "@repo/ai";
-import * as crypto from "crypto";
 import { getEnv } from "@repo/config";
+import { createEncryptor } from "@repo/shared";
 import { InjectQueue } from "@nestjs/bull";
 import { type Queue } from "bull";
 import { VectorService } from "./vector.service";
@@ -11,7 +11,7 @@ import { VectorService } from "./vector.service";
 export class AIService {
   private readonly logger = new Logger(AIService.name);
   private orchestrator = new AIOrchestrator();
-  private encryptionKey = getEnv().ENCRYPTION_KEY || "fallback-key-at-least-32-chars-long-!!!";
+  private readonly encryptor = createEncryptor(getEnv().ENCRYPTION_KEY);
 
   constructor(@Inject(PrismaService) private prisma: PrismaService, private vector: VectorService, @InjectQueue("ai") private aiQueue: Queue
   ) {}
@@ -357,20 +357,10 @@ Format exactly as JSON.`;
   }
 
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(this.encryptionKey.slice(0, 32)), iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
+    return this.encryptor.encrypt(text);
   }
 
   private decrypt(text: string): string {
-    const textParts = text.split(":");
-    const iv = Buffer.from(textParts.shift()!, "hex");
-    const encryptedText = Buffer.from(textParts.join(":"), "hex");
-    const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(this.encryptionKey.slice(0, 32)), iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    return this.encryptor.decrypt(text);
   }
 }

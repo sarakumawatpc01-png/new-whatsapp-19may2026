@@ -4,12 +4,17 @@ import { hashPassword, comparePassword, generateToken, generateRefreshToken, ver
 import { getEnv } from "@repo/config";
 import { randomBytes, createHash } from "crypto";
 import { UserRole, TenantStatus, SubscriptionStatus, TenantType } from "@repo/database";
+import { InjectQueue } from "@nestjs/bull";
+import type { Queue } from "bull";
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private prisma: PrismaService;
-  constructor(@Inject(PrismaService) prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService) prisma: PrismaService,
+    @InjectQueue("email:send") private emailQueue: Queue
+  ) {
     this.prisma = prisma;
     this.logger.log(`Initialized with Prisma: ${!!prisma}`);
   }
@@ -101,6 +106,25 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
+
+    const apiBaseUrl = getEnv().NEXT_PUBLIC_API_URL;
+    const frontendBaseUrl = getEnv().FRONTEND_URL || getEnv().NEXTAUTH_URL || apiBaseUrl.replace(/\/api$/, "");
+    const verifyUrl = `${apiBaseUrl}/auth/verify-email?token=${verificationToken}`;
+
+    try {
+      await this.emailQueue.add("send", {
+        tenantId: tenant.id,
+        userId: user.id,
+        to: user.email,
+        template: "email-verification",
+        data: { name: user.name, verifyUrl, loginUrl: `${frontendBaseUrl}/login` },
+      }, {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+      });
+    } catch (error: any) {
+      this.logger.error(`Failed to queue verification email: ${error.message}`);
+    }
 
     this.logger.debug(`Generating JWT tokens and session`);
     const payload = { sub: user.id, tenant_id: tenant.id, role: user.role };
@@ -211,6 +235,25 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 1 * 60 * 60 * 1000),
       },
     });
+
+    const apiBaseUrl = getEnv().NEXT_PUBLIC_API_URL;
+    const frontendBaseUrl = getEnv().FRONTEND_URL || getEnv().NEXTAUTH_URL || apiBaseUrl.replace(/\/api$/, "");
+    const resetUrl = `${frontendBaseUrl}/reset-password?token=${token}`;
+
+    try {
+      await this.emailQueue.add("send", {
+        tenantId: user.tenantId,
+        userId: user.id,
+        to: user.email,
+        template: "password-reset",
+        data: { resetUrl },
+      }, {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+      });
+    } catch (error: any) {
+      this.logger.error(`Failed to queue password reset email: ${error.message}`);
+    }
   }
 
   async resetPassword(token: string, newPassword: string) {

@@ -139,9 +139,13 @@ export class AutomationProcessor {
         case "send_message":
           await this.whatsappQueue.add("outgoing", {
             tenantId: context.tenantId,
+            numberId: context.numberId,
             to: context.contact?.phone || context.from,
             type: "TEXT",
             body: this.replaceVariables(node.data.text, context),
+          }, {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 2000 },
           });
           return { success: true };
 

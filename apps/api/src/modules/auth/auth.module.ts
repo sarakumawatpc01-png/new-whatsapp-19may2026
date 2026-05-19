@@ -6,10 +6,12 @@ import { JwtAuthGuard, RolesGuard } from "./guards";
 import { PrismaModule } from "../../prisma/prisma.module";
 import { RedisModule } from "../../redis/redis.module";
 import { PassportModule } from "@nestjs/passport";
+import { BullModule } from "@nestjs/bull";
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: "jwt" }),
+    BullModule.registerQueue({ name: "email:send" }),
     PrismaModule,
     RedisModule,
   ],

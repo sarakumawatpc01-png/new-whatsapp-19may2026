@@ -131,11 +131,14 @@ export class PublicApiController {
     }
 
     await this.whatsappQueue.add("outgoing", {
-      tenant_id: req.user.tenant_id,
-      phone_number_id: number.phoneNumberId,
+      tenantId: req.user.tenant_id,
+      phoneNumberId: number.phoneNumberId,
       to,
       type,
-      content,
+      body: content,
+    }, {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
     });
 
     return { success: true, data: { status: "queued", to, type } };

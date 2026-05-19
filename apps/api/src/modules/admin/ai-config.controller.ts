@@ -3,18 +3,10 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { JwtAuthGuard, RolesGuard } from "../auth/guards";
 import { Roles } from "../auth/decorators";
 import { UserRole, AIProvider } from "@repo/database";
-import * as crypto from "crypto";
 import { getEnv } from "@repo/config";
+import { createEncryptor } from "@repo/shared";
 
-const ENCRYPTION_KEY = Buffer.from(getEnv().ENCRYPTION_KEY || "0".repeat(64), "hex");
-
-function encryptKey(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString("hex") + ":" + encrypted.toString("hex");
-}
+const { encrypt: encryptKey } = createEncryptor(getEnv().ENCRYPTION_KEY);
 
 function maskKey(val: string | null | undefined): string {
   if (!val) return "";

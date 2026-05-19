@@ -156,6 +156,9 @@ export class InboxService {
       type: params.type,
       body: params.body,
       mediaUrl: params.mediaUrl,
+    }, {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
     });
 
     return message;

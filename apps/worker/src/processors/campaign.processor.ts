@@ -68,6 +68,8 @@ export class CampaignProcessor {
           // Push to WhatsApp queue for actual sending
           await this.whatsappQueue.add("outgoing", {
             tenantId,
+            numberId: campaign.numberId,
+            phoneNumberId: campaign.number.phoneNumberId,
             to: msg.contact.phone,
             type: "TEMPLATE",
             templateName: msg.template.name,
@@ -78,7 +80,7 @@ export class CampaignProcessor {
           }, { 
             delay: Math.floor(Math.random() * 2000), // Tiny jitter
             attempts: 3,
-            backoff: 5000
+            backoff: { type: "exponential", delay: 5000 }
           });
 
           await this.prisma.campaignMessage.update({

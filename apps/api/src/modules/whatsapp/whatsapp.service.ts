@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus, Inject } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { getEnv } from "@repo/config";
+import { createEncryptor } from "@repo/shared";
 import axios from "axios";
 import * as crypto from "crypto";
 import { InjectQueue } from "@nestjs/bull";
@@ -12,9 +13,7 @@ const META_API_VERSION = "v19.0";
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
-  private readonly algorithm = "aes-256-cbc";
-  private readonly key = Buffer.from(getEnv().ENCRYPTION_KEY || "0".repeat(64), "hex");
-  private readonly ivSize = 16;
+  private readonly encryptor = createEncryptor(getEnv().ENCRYPTION_KEY);
 
   constructor(@Inject(PrismaService) private prisma: PrismaService, @InjectQueue("whatsapp") private whatsappQueue: Queue
   ) {}
@@ -24,21 +23,11 @@ export class WhatsAppService {
   }
 
   encrypt(text: string): string {
-    const iv = crypto.randomBytes(this.ivSize);
-    const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
+    return this.encryptor.encrypt(text);
   }
 
   decrypt(text: string): string {
-    const textParts = text.split(":");
-    const iv = Buffer.from(textParts.shift()!, "hex");
-    const encryptedText = Buffer.from(textParts.join(":"), "hex");
-    const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    return this.encryptor.decrypt(text);
   }
 
   async verifyWebhook(verifyToken: string, challenge: string): Promise<string> {
