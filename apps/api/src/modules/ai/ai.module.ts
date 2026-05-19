@@ -4,7 +4,6 @@ import { BullModule } from "@nestjs/bull";
 import { AIController } from "./ai.controller";
 import { AIService } from "./ai.service";
 import { VectorService } from "./vector.service";
-import { AIProcessor } from "./ai.processor";
 
 @Module({
   imports: [PrismaModule, 
@@ -13,7 +12,7 @@ import { AIProcessor } from "./ai.processor";
     }),
   ],
   controllers: [AIController],
-  providers: [AIService, VectorService, AIProcessor],
+  providers: [AIService, VectorService],
   exports: [AIService, VectorService],
 })
 export class AIModule {}

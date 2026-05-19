@@ -51,11 +51,20 @@ export class WhatsAppService {
   }
 
   async handleWebhook(tenantId: string, payload: any): Promise<void> {
+    const eventId =
+      payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ||
+      payload?.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id ||
+      crypto
+        .createHash("sha256")
+        .update(JSON.stringify(payload || {}))
+        .digest("hex")
+        .slice(0, 16);
+
     await this.whatsappQueue.add("webhook", {
       tenantId,
       payload,
     }, {
-      jobId: `webhook-${Date.now()}-${crypto.randomInt(1000)}`,
+      jobId: `webhook-${tenantId}-${eventId}`,
     });
   }
 

@@ -69,6 +69,6 @@ import { RateLimitMiddleware } from "./middleware/rate-limit.middleware";
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(DomainMiddleware).forRoutes("*");
-    consumer.apply(RateLimitMiddleware).forRoutes("openapi");
+    consumer.apply(RateLimitMiddleware).forRoutes("auth", "openapi");
   }
 }

@@ -21,13 +21,14 @@ export class WebhooksController {
   @Post("stripe")
   async stripeWebhook(@Body() payload: any, @Headers("stripe-signature") sig: string) {
     const env = getEnv();
+    const webhookSecret = env.STRIPE_WEBHOOK_SECRET || "";
+    if (!webhookSecret || webhookSecret === "whsec_placeholder") {
+      throw new HttpException("Stripe webhook secret is not configured", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     let verified = false;
     try {
-      if (env.STRIPE_WEBHOOK_SECRET === "whsec_placeholder") {
-        verified = true;
-      } else {
-        verified = this.stripe.verifyWebhook(payload, sig, env.STRIPE_WEBHOOK_SECRET || "");
-      }
+      verified = this.stripe.verifyWebhook(payload, sig, webhookSecret);
     } catch (e) {
       verified = false;
     }

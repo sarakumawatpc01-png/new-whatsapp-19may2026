@@ -8,6 +8,9 @@ import { createEncryptor } from "@repo/shared";
 import * as crypto from "crypto";
 import { MessageDirection, MessageStatus, MessageType, MessageSender } from "@repo/database";
 import { RealtimePublisher } from "../realtime/realtime.publisher";
+import axios from "axios";
+import * as pdfParse from "pdf-parse";
+import * as mammoth from "mammoth";
 
 @Processor("ai")
 export class AIProcessor {
@@ -26,6 +29,7 @@ export class AIProcessor {
     const { tenantId, conversationId, numberId } = job.data;
     this.logger.log(`Processing AI reply for conversation: ${conversationId}`);
 
+    let messageId: string | null = null;
     try {
       const [conversation, tenantConfig, globalConfigRaw] = await Promise.all([
         this.prisma.conversation.findUnique({
@@ -104,12 +108,13 @@ export class AIProcessor {
           senderType: MessageSender.AI,
           type: MessageType.TEXT,
           body: result.content,
-          status: MessageStatus.SENT,
+          status: MessageStatus.PENDING,
           isInsideCsw,
           messageCategory: isInsideCsw ? "SERVICE" : "UTILITY",
           messageCost: isInsideCsw ? 0.00 : 0.05,
         },
       });
+      messageId = message.id;
 
       // Log Usage
       if (result.usage) {
@@ -154,6 +159,17 @@ export class AIProcessor {
 
       this.logger.log(`AI reply sent for conversation: ${conversationId}`);
     } catch (error: any) {
+      if (messageId) {
+        const failed = await this.prisma.message.update({
+          where: { id: messageId },
+          data: {
+            status: MessageStatus.FAILED,
+            failedAt: new Date(),
+            failureReason: error?.message || "AI processing failed",
+          },
+        });
+        await this.realtime.publish(tenantId, "message:update", failed);
+      }
       this.logger.error(`Failed to process AI reply: ${error.stack}`);
     }
   }
@@ -172,8 +188,7 @@ export class AIProcessor {
 
       let content = doc.content;
       if (!content && doc.fileUrl) {
-        // In a real app, you would download the file and use a library like pdf-parse
-        content = `Extracted text from ${doc.name} (${doc.fileUrl}). The system is fully operational.`;
+        content = await this.extractDocumentContent(doc.fileUrl, doc.name);
         await this.prisma.aIDocument.update({
           where: { id: docId },
           data: { content }
@@ -269,5 +284,23 @@ export class AIProcessor {
 
   private decrypt(text: string): string {
     return this.encryptor.decrypt(text);
+  }
+
+  private async extractDocumentContent(fileUrl: string, fileName?: string | null): Promise<string> {
+    const response = await axios.get<ArrayBuffer>(fileUrl, { responseType: "arraybuffer" });
+    const buffer = Buffer.from(response.data);
+    const name = (fileName || fileUrl).toLowerCase();
+
+    if (name.endsWith(".pdf")) {
+      const parsed = await (pdfParse as any)(buffer);
+      return (parsed.text || "").trim();
+    }
+
+    if (name.endsWith(".docx")) {
+      const parsed = await mammoth.extractRawText({ buffer });
+      return (parsed.value || "").trim();
+    }
+
+    return buffer.toString("utf8").trim();
   }
 }
