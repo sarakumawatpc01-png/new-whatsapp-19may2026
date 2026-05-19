@@ -5,6 +5,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { StripeProvider, RazorpayProvider } from "@repo/billing";
 import { getEnv } from "@repo/config";
 import { PaymentProvider } from "@repo/database";
+import * as crypto from "crypto";
 
 @Controller("webhooks")
 export class WebhooksController {
@@ -63,7 +64,7 @@ export class WebhooksController {
     const verified = this.razorpay.verifyWebhook(payload, sig, env.RAZORPAY_WEBHOOK_SECRET || "");
     if (!verified) throw new HttpException("Invalid signature", HttpStatus.BAD_REQUEST);
 
-    const eventId = payload.account_id + "_" + payload.created_at;
+    const eventId = this.deriveRazorpayEventId(payload);
     const exists = await this.prisma.paymentWebhook.findUnique({ where: { eventId } });
     if (exists) return { success: true };
 
@@ -83,5 +84,29 @@ export class WebhooksController {
     });
 
     return { success: true };
+  }
+
+  private deriveRazorpayEventId(payload: any): string {
+    const paymentEntityId =
+      payload?.payload?.payment?.entity?.id ||
+      payload?.payload?.order?.entity?.id ||
+      payload?.payload?.refund?.entity?.id;
+
+    if (paymentEntityId && payload?.event) {
+      return `rzp:${payload.event}:${paymentEntityId}`;
+    }
+
+    const stable = this.stableStringify(payload || {});
+    const hash = crypto.createHash("sha256").update(stable).digest("hex");
+    return `rzp:${payload?.event || "unknown"}:${hash}`;
+  }
+
+  private stableStringify(value: unknown): string {
+    if (value === null || typeof value !== "object") return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map((v) => this.stableStringify(v)).join(",")}]`;
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${this.stableStringify(v)}`);
+    return `{${entries.join(",")}}`;
   }
 }

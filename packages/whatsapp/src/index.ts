@@ -1,6 +1,5 @@
 import axios from "axios";
-
-const META_API_VERSION = "v19.0";
+import { getEnv } from "@repo/config";
 
 export interface SendMessageParams {
   phoneNumberId: string;
@@ -22,7 +21,7 @@ export interface MessageResponse {
 
 export class WhatsAppClient {
   private graphUrl(path: string): string {
-    return `https://graph.facebook.com/${META_API_VERSION}/${path}`;
+    return `https://graph.facebook.com/${getEnv().META_API_VERSION}/${path}`;
   }
 
   async sendTextMessage(phoneNumberId: string, token: string, to: string, body: string): Promise<MessageResponse> {

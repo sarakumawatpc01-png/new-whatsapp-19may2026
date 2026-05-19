@@ -22,7 +22,8 @@ const envSchema = z.object({
   META_VERIFY_TOKEN: z.string(),
   META_SYSTEM_USER_TOKEN: z.string().optional(),
   META_CONFIG_ID: z.string().optional(),
-  META_API_VERSION: z.string().default("v18.0"),
+  META_API_VERSION: z.string().default("v19.0"),
+  META_REGISTRATION_PIN: z.string().optional(),
 
   // ── AI Providers ──────────────────────────────
   OPENROUTER_API_KEY: z.string().optional(),

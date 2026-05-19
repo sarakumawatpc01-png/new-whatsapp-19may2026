@@ -8,8 +8,6 @@ import { InjectQueue } from "@nestjs/bull";
 import { type Queue } from "bull";
 import { WhatsAppAccountStatus, ConversationStatus, MessageDirection, MessageType, MessageStatus, MessageSender } from "@repo/database";
 
-const META_API_VERSION = "v19.0";
-
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
@@ -19,7 +17,7 @@ export class WhatsAppService {
   ) {}
 
   private graphUrl(path: string): string {
-    return `https://graph.facebook.com/${META_API_VERSION}/${path}`;
+    return `https://graph.facebook.com/${getEnv().META_API_VERSION}/${path}`;
   }
 
   encrypt(text: string): string {
@@ -89,10 +87,14 @@ export class WhatsAppService {
 
     // Step 3: Register phone number (CRITICAL — often missed)
     try {
-      await axios.post(this.graphUrl(`${phoneNumberId}/register`), {
+      const registrationPayload: Record<string, string> = {
         messaging_product: "whatsapp",
-        pin: "000000",
-      }, {
+      };
+      if (getEnv().META_REGISTRATION_PIN) {
+        registrationPayload.pin = getEnv().META_REGISTRATION_PIN;
+      }
+
+      await axios.post(this.graphUrl(`${phoneNumberId}/register`), registrationPayload, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       this.logger.log(`Phone number ${phoneNumberId} registered successfully`);
