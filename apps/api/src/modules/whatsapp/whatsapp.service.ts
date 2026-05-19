@@ -56,9 +56,8 @@ export class WhatsAppService {
       payload?.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id ||
       crypto
         .createHash("sha256")
-        .update(JSON.stringify(payload || {}))
-        .digest("hex")
-        .slice(0, 16);
+        .update(this.stableStringify(payload || {}))
+        .digest("hex");
 
     await this.whatsappQueue.add("webhook", {
       tenantId,
@@ -289,5 +288,20 @@ export class WhatsAppService {
       this.logger.error(`Meta API Error: ${JSON.stringify(e.response?.data || e.message)}`);
       throw e;
     }
+  }
+
+  private stableStringify(value: unknown): string {
+    if (value === null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableStringify(item)).join(",")}]`;
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${JSON.stringify(key)}:${this.stableStringify(val)}`);
+    return `{${entries.join(",")}}`;
   }
 }

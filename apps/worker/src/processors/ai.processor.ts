@@ -9,7 +9,7 @@ import * as crypto from "crypto";
 import { MessageDirection, MessageStatus, MessageType, MessageSender } from "@repo/database";
 import { RealtimePublisher } from "../realtime/realtime.publisher";
 import axios from "axios";
-import * as pdfParse from "pdf-parse";
+import pdfParse from "pdf-parse";
 import * as mammoth from "mammoth";
 
 @Processor("ai")
@@ -287,20 +287,84 @@ export class AIProcessor {
   }
 
   private async extractDocumentContent(fileUrl: string, fileName?: string | null): Promise<string> {
-    const response = await axios.get<ArrayBuffer>(fileUrl, { responseType: "arraybuffer" });
-    const buffer = Buffer.from(response.data);
-    const name = (fileName || fileUrl).toLowerCase();
+    this.assertSafeDocumentUrl(fileUrl);
 
-    if (name.endsWith(".pdf")) {
-      const parsed = await (pdfParse as any)(buffer);
-      return (parsed.text || "").trim();
+    try {
+      const response = await axios.get<ArrayBuffer>(fileUrl, {
+        responseType: "arraybuffer",
+        timeout: 15000,
+        maxContentLength: 10 * 1024 * 1024,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`Unexpected HTTP status ${response.status}`);
+      }
+
+      const buffer = Buffer.from(response.data);
+      const name = (fileName || fileUrl).toLowerCase();
+      const contentType = String(response.headers["content-type"] || "").toLowerCase();
+      const isOctetStream = contentType.includes("application/octet-stream");
+
+      if (name.endsWith(".pdf")) {
+        if (!isOctetStream && !contentType.includes("application/pdf")) {
+          throw new Error(`Unexpected content-type for PDF: ${contentType || "unknown"}`);
+        }
+        const parsed = await pdfParse(buffer);
+        return (parsed.text || "").trim();
+      }
+
+      if (name.endsWith(".docx")) {
+        if (!isOctetStream && !contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+          throw new Error(`Unexpected content-type for DOCX: ${contentType || "unknown"}`);
+        }
+        const parsed = await mammoth.extractRawText({ buffer });
+        return (parsed.value || "").trim();
+      }
+
+      if (!isOctetStream && !contentType.startsWith("text/plain")) {
+        throw new Error(`Unexpected content-type for text document: ${contentType || "unknown"}`);
+      }
+      return buffer.toString("utf8").trim();
+    } catch (error: any) {
+      throw new Error(`Document extraction failed: ${error?.message || "unknown error"}`);
+    }
+  }
+
+  private assertSafeDocumentUrl(fileUrl: string) {
+    const parsed = new URL(fileUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("Document URL protocol must be http or https");
     }
 
-    if (name.endsWith(".docx")) {
-      const parsed = await mammoth.extractRawText({ buffer });
-      return (parsed.value || "").trim();
+    const host = parsed.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local")) {
+      throw new Error("Document URL host is not allowed");
     }
 
-    return buffer.toString("utf8").trim();
+    if (this.isPrivateIpv4(host) || this.isPrivateIpv6(host)) {
+      throw new Error("Document URL private network hosts are not allowed");
+    }
+  }
+
+  private isPrivateIpv4(host: string): boolean {
+    const parts = host.split(".").map((p) => Number(p));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+      return false;
+    }
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    return false;
+  }
+
+  private isPrivateIpv6(host: string): boolean {
+    const normalized = host.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:")
+    );
   }
 }
