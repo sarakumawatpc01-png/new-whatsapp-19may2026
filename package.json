@@ -1,0 +1,42 @@
+{
+  "name": "whatsapp-saas-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "dotenv -e .env -- pnpm --filter @repo/database migrate",
+    "db:studio": "dotenv -e .env -- pnpm --filter @repo/database studio",
+    "db:seed": "dotenv -e .env -- pnpm --filter @repo/database seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@nestjs/cli": "^10.4.9",
+    "@nestjs/schematics": "^10.2.3",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.33",
+    "@types/node": "^22.5.5",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^9.9.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "tsx": "^4.21.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.59.1"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "tailwindcss-animate": "^1.0.7"
+  }
+}
