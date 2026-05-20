@@ -66,6 +66,9 @@ export class WhatsAppService {
   }
 
   async connect(tenantId: string, code: string, wabaId: string, phoneNumberId: string): Promise<any> {
+    this.assertMetaGraphId(wabaId, "wabaId");
+    this.assertMetaGraphId(phoneNumberId, "phoneNumberId");
+
     const appId = getEnv().META_APP_ID;
     const appSecret = getEnv().META_APP_SECRET;
     const systemUserToken = getEnv().META_SYSTEM_USER_TOKEN;
@@ -305,5 +308,11 @@ export class WhatsAppService {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, val]) => `${JSON.stringify(key)}:${this.stableStringify(val)}`);
     return `{${entries.join(",")}}`;
+  }
+
+  private assertMetaGraphId(value: string, fieldName: string): void {
+    if (!value || !/^\d{5,25}$/.test(value)) {
+      throw new HttpException(`Invalid ${fieldName}`, HttpStatus.BAD_REQUEST);
+    }
   }
 }

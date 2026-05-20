@@ -11,6 +11,7 @@ import { RealtimePublisher } from "../realtime/realtime.publisher";
 import axios from "axios";
 import pdfParse from "pdf-parse";
 import * as mammoth from "mammoth";
+import { promises as dns } from "dns";
 
 @Processor("ai")
 export class AIProcessor {
@@ -294,7 +295,7 @@ export class AIProcessor {
   }
 
   private async extractDocumentContent(fileUrl: string, fileName?: string | null): Promise<string> {
-    this.assertSafeDocumentUrl(fileUrl);
+    await this.assertSafeDocumentUrl(fileUrl);
 
     try {
       const response = await axios.get<ArrayBuffer>(fileUrl, {
@@ -336,19 +337,48 @@ export class AIProcessor {
     }
   }
 
-  private assertSafeDocumentUrl(fileUrl: string) {
+  private async assertSafeDocumentUrl(fileUrl: string) {
     const parsed = new URL(fileUrl);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       throw new Error("Document URL protocol must be http or https");
     }
 
     const host = parsed.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local")) {
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      host.endsWith(".internal") ||
+      host === "host.docker.internal" ||
+      host === "metadata.google.internal" ||
+      host === "metadata" ||
+      host === "kubernetes.default.svc"
+    ) {
       throw new Error("Document URL host is not allowed");
     }
 
     if (this.isPrivateIpv4(host) || this.isPrivateIpv6(host)) {
       throw new Error("Document URL private network hosts are not allowed");
+    }
+
+    await this.assertHostResolvesToPublicIp(host);
+  }
+
+  private async assertHostResolvesToPublicIp(host: string): Promise<void> {
+    try {
+      const records = await dns.lookup(host, { all: true, verbatim: true });
+      if (!records.length) {
+        throw new Error("Document URL host did not resolve to an address");
+      }
+      for (const record of records) {
+        const address = record.address.toLowerCase();
+        if (this.isPrivateIpv4(address) || this.isPrivateIpv6(address)) {
+          throw new Error("Document URL resolved to a private network address");
+        }
+      }
+    } catch (error: any) {
+      throw new Error(`Document URL DNS validation failed: ${error?.message || "unknown error"}`);
     }
   }
 
@@ -369,6 +399,9 @@ export class AIProcessor {
     const normalized = host.toLowerCase();
     return (
       normalized === "::1" ||
+      normalized.startsWith("::ffff:127.") ||
+      normalized.startsWith("::ffff:10.") ||
+      normalized.startsWith("::ffff:192.168.") ||
       normalized.startsWith("fc") ||
       normalized.startsWith("fd") ||
       normalized.startsWith("fe80:")
