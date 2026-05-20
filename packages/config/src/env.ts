@@ -10,8 +10,8 @@ const envSchema = z.object({
   // ── Auth ──────────────────────────────────────
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_PUBLIC_KEY: z.string(),
-  JWT_PRIVATE_KEY: z.string(),
+  JWT_PUBLIC_KEY: z.string().optional(),
+  JWT_PRIVATE_KEY: z.string().optional(),
   NEXTAUTH_SECRET: z.string().min(32),
   NEXTAUTH_URL: z.string().url(),
   ENCRYPTION_KEY: z.string().optional(),

@@ -170,9 +170,25 @@ export class AIOrchestrator {
   }
 
   private containsProhibitedContent(text: string): boolean {
-    const prohibited = ["password", "credit card", "ssn", "social security"];
     const lower = text.toLowerCase();
-    return prohibited.some(p => lower.includes(p));
+
+    const directSecretDisclosurePatterns: RegExp[] = [
+      /\b(my|the|your)\s+password\s+is\s+\S+/i,
+      /\b(passcode|otp|cvv|cvc)\s*(is|:)\s*\d{3,8}\b/i,
+      /\bssn\s*(is|:)\s*\d{3}-?\d{2}-?\d{4}\b/i,
+      /\bsocial\s+security\s+number\s*(is|:)\s*\d{3}-?\d{2}-?\d{4}\b/i,
+      /\b(card\s+number|credit\s+card)\s*(is|:)\s*(?:\d[\s-]?){13,19}\b/i,
+    ];
+    if (directSecretDisclosurePatterns.some((pattern) => pattern.test(lower))) {
+      return true;
+    }
+
+    const maybeCard = text.replace(/[\s-]/g, "");
+    if (/\b\d{13,19}\b/.test(maybeCard)) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
