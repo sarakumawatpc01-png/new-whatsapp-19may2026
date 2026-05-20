@@ -8,8 +8,6 @@ import { InjectQueue } from "@nestjs/bull";
 import { type Queue } from "bull";
 import { WhatsAppAccountStatus, ConversationStatus, MessageDirection, MessageType, MessageStatus, MessageSender } from "@repo/database";
 
-const META_API_VERSION = "v19.0";
-
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
@@ -19,7 +17,7 @@ export class WhatsAppService {
   ) {}
 
   private graphUrl(path: string): string {
-    return `https://graph.facebook.com/${META_API_VERSION}/${path}`;
+    return `https://graph.facebook.com/${getEnv().META_API_VERSION}/${path}`;
   }
 
   encrypt(text: string): string {
@@ -51,15 +49,26 @@ export class WhatsAppService {
   }
 
   async handleWebhook(tenantId: string, payload: any): Promise<void> {
+    const eventId =
+      payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ||
+      payload?.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.id ||
+      crypto
+        .createHash("sha256")
+        .update(this.stableStringify(payload || {}))
+        .digest("hex");
+
     await this.whatsappQueue.add("webhook", {
       tenantId,
       payload,
     }, {
-      jobId: `webhook-${Date.now()}-${crypto.randomInt(1000)}`,
+      jobId: `webhook-${tenantId}-${eventId}`,
     });
   }
 
   async connect(tenantId: string, code: string, wabaId: string, phoneNumberId: string): Promise<any> {
+    this.assertMetaGraphId(wabaId, "wabaId");
+    this.assertMetaGraphId(phoneNumberId, "phoneNumberId");
+
     const appId = getEnv().META_APP_ID;
     const appSecret = getEnv().META_APP_SECRET;
     const systemUserToken = getEnv().META_SYSTEM_USER_TOKEN;
@@ -81,10 +90,14 @@ export class WhatsAppService {
 
     // Step 3: Register phone number (CRITICAL — often missed)
     try {
-      await axios.post(this.graphUrl(`${phoneNumberId}/register`), {
+      const registrationPayload: Record<string, string> = {
         messaging_product: "whatsapp",
-        pin: "000000",
-      }, {
+      };
+      if (getEnv().META_REGISTRATION_PIN) {
+        registrationPayload.pin = getEnv().META_REGISTRATION_PIN;
+      }
+
+      await axios.post(this.graphUrl(`${phoneNumberId}/register`), registrationPayload, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       this.logger.log(`Phone number ${phoneNumberId} registered successfully`);
@@ -279,6 +292,27 @@ export class WhatsAppService {
     } catch (e: any) {
       this.logger.error(`Meta API Error: ${JSON.stringify(e.response?.data || e.message)}`);
       throw e;
+    }
+  }
+
+  private stableStringify(value: unknown): string {
+    if (value === null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableStringify(item)).join(",")}]`;
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${JSON.stringify(key)}:${this.stableStringify(val)}`);
+    return `{${entries.join(",")}}`;
+  }
+
+  private assertMetaGraphId(value: string, fieldName: string): void {
+    if (!value || !/^\d{5,25}$/.test(value)) {
+      throw new HttpException(`Invalid ${fieldName}`, HttpStatus.BAD_REQUEST);
     }
   }
 }

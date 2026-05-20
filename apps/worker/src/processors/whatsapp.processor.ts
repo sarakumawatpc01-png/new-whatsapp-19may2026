@@ -10,12 +10,11 @@ import { RealtimePublisher } from "../realtime/realtime.publisher";
 import { createEncryptor } from "@repo/shared";
 import { getEnv } from "@repo/config";
 import { metaClient } from "@repo/whatsapp";
+import { RedisService } from "../redis/redis.service";
 
 @Processor("whatsapp")
 export class WhatsAppProcessor {
   private readonly logger = new Logger(WhatsAppProcessor.name);
-  // Simple in-memory dedup set (in production, use Redis SET NX)
-  private processedWebhookIds = new Set<string>();
   private readonly encryptor = createEncryptor(getEnv().ENCRYPTION_KEY);
 
   constructor(
@@ -23,6 +22,7 @@ export class WhatsAppProcessor {
     private triggerMatcher: TriggerMatcherService,
     @InjectQueue("ai") private aiQueue: Queue,
     private realtime: RealtimePublisher,
+    private redisService: RedisService,
   ) {}
 
   @Process("webhook")
@@ -125,20 +125,12 @@ export class WhatsAppProcessor {
   }
 
   private async processMessage(tenantId: string, phoneId: string, msg: any, contactInfo: any) {
-    // Idempotency check — skip duplicate webhook deliveries
-    const dedupeKey = `msg:${msg.id}`;
-    if (this.processedWebhookIds.has(dedupeKey)) {
-      this.logger.log(`Skipping duplicate message ${msg.id}`);
-      return;
-    }
-    
     // Check DB for existing message with same whatsappId
     const existing = await this.prisma.message.findFirst({
       where: { whatsappId: msg.id }
     });
     if (existing) {
       this.logger.log(`Message ${msg.id} already processed, skipping`);
-      this.processedWebhookIds.add(dedupeKey);
       return;
     }
 
@@ -148,6 +140,10 @@ export class WhatsAppProcessor {
 
     if (!waNumber) {
       this.logger.error(`WhatsApp number ${phoneId} not found for tenant ${tenantId}`);
+      return;
+    }
+    if (waNumber.tenantId !== tenantId) {
+      this.logger.error(`Tenant mismatch for phone ${phoneId}: expected ${tenantId}, got ${waNumber.tenantId}`);
       return;
     }
 
@@ -190,6 +186,13 @@ export class WhatsAppProcessor {
     }
 
     const body = msg.text?.body || msg.caption || "";
+    const dedupeKey = `dedup:whatsapp:message:${msg.id}`;
+    const accepted = await this.redisService.getClient().set(dedupeKey, "1", "EX", 86400, "NX");
+    if (!accepted) {
+      this.logger.log(`Skipping duplicate message ${msg.id}`);
+      return;
+    }
+
     const message = await this.prisma.message.create({
       data: {
         tenantId,
@@ -203,14 +206,6 @@ export class WhatsAppProcessor {
         status: MessageStatus.DELIVERED,
       }
     });
-
-    // Mark as processed for idempotency
-    this.processedWebhookIds.add(dedupeKey);
-    // Keep set bounded (evict oldest after 10k entries)
-    if (this.processedWebhookIds.size > 10000) {
-      const first = this.processedWebhookIds.values().next().value;
-      if (first) this.processedWebhookIds.delete(first);
-    }
 
     const cswExpiresAt = new Date();
     cswExpiresAt.setHours(cswExpiresAt.getHours() + 24);

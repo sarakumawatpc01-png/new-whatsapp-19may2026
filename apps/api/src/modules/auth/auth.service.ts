@@ -51,17 +51,35 @@ export class AuthService {
     });
 
     this.logger.debug(`Creating trial subscription`);
-    await this.prisma.subscription.create({
-      data: {
-        tenantId: tenant.id,
-        planId: "trial-plan",
-        status: SubscriptionStatus.TRIALING,
-        provider: "STRIPE",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      },
-    });
+    const selectedPlan =
+      await this.prisma.plan.findFirst({
+        where: {
+          isActive: true,
+          slug: { in: ["trial", "trial-plan"] },
+        },
+        orderBy: { sortOrder: "asc" },
+      }) ||
+      await this.prisma.plan.findFirst({
+        where: { isActive: true, isPublic: true },
+        orderBy: { sortOrder: "asc" },
+      });
+
+    if (selectedPlan) {
+      const trialDays = Math.max(1, selectedPlan.trialDays || 14);
+      await this.prisma.subscription.create({
+        data: {
+          tenantId: tenant.id,
+          planId: selectedPlan.id,
+          status: SubscriptionStatus.TRIALING,
+          provider: "STRIPE",
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+          trialEnd: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+        },
+      });
+    } else {
+      this.logger.warn(`No active plan found during signup for ${email}; skipping subscription bootstrap`);
+    }
 
     this.logger.debug(`Creating branding and feature flags`);
     await this.prisma.tenantBranding.create({

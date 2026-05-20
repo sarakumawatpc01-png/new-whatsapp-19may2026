@@ -8,6 +8,10 @@ import { createEncryptor } from "@repo/shared";
 import * as crypto from "crypto";
 import { MessageDirection, MessageStatus, MessageType, MessageSender } from "@repo/database";
 import { RealtimePublisher } from "../realtime/realtime.publisher";
+import axios from "axios";
+import pdfParse from "pdf-parse";
+import * as mammoth from "mammoth";
+import { promises as dns } from "dns";
 
 @Processor("ai")
 export class AIProcessor {
@@ -25,7 +29,9 @@ export class AIProcessor {
   async handleAIProcessing(job: Job<any>) {
     const { tenantId, conversationId, numberId } = job.data;
     this.logger.log(`Processing AI reply for conversation: ${conversationId}`);
+    const startedAt = Date.now();
 
+    let messageId: string | null = null;
     try {
       const [conversation, tenantConfig, globalConfigRaw] = await Promise.all([
         this.prisma.conversation.findUnique({
@@ -104,26 +110,33 @@ export class AIProcessor {
           senderType: MessageSender.AI,
           type: MessageType.TEXT,
           body: result.content,
-          status: MessageStatus.SENT,
+          status: MessageStatus.PENDING,
           isInsideCsw,
           messageCategory: isInsideCsw ? "SERVICE" : "UTILITY",
           messageCost: isInsideCsw ? 0.00 : 0.05,
         },
       });
+      messageId = message.id;
 
       // Log Usage
       if (result.usage) {
+        const modelName = tenantConfig.model || globalConfigRaw?.modelChat || "UNKNOWN";
+        const inputTokens = Number(result.usage.promptTokens || 0);
+        const outputTokens = Number(result.usage.completionTokens || 0);
+        const totalTokens = Number(result.usage.totalTokens || (inputTokens + outputTokens));
+        const costUsd = this.calculateCostUsd(modelName, inputTokens, outputTokens);
+
         await this.prisma.aIUsageLog.create({
           data: {
             tenantId,
             conversationId,
             provider: (tenantConfig.provider || globalConfigRaw?.provider || "OPENROUTER") as any,
-            model: tenantConfig.model || globalConfigRaw?.modelChat || "UNKNOWN",
-            inputTokens: result.usage.promptTokens,
-            outputTokens: result.usage.completionTokens,
-            totalTokens: result.usage.totalTokens,
-            costUsd: 0, 
-            latencyMs: 0,
+            model: modelName,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            costUsd,
+            latencyMs: Date.now() - startedAt,
           },
         });
       }
@@ -154,6 +167,17 @@ export class AIProcessor {
 
       this.logger.log(`AI reply sent for conversation: ${conversationId}`);
     } catch (error: any) {
+      if (messageId) {
+        const failed = await this.prisma.message.update({
+          where: { id: messageId },
+          data: {
+            status: MessageStatus.FAILED,
+            failedAt: new Date(),
+            failureReason: error?.message || "AI processing failed",
+          },
+        });
+        await this.realtime.publish(tenantId, "message:update", failed);
+      }
       this.logger.error(`Failed to process AI reply: ${error.stack}`);
     }
   }
@@ -172,8 +196,7 @@ export class AIProcessor {
 
       let content = doc.content;
       if (!content && doc.fileUrl) {
-        // In a real app, you would download the file and use a library like pdf-parse
-        content = `Extracted text from ${doc.name} (${doc.fileUrl}). The system is fully operational.`;
+        content = await this.extractDocumentContent(doc.fileUrl, doc.name);
         await this.prisma.aIDocument.update({
           where: { id: docId },
           data: { content }
@@ -269,5 +292,151 @@ export class AIProcessor {
 
   private decrypt(text: string): string {
     return this.encryptor.decrypt(text);
+  }
+
+  private async extractDocumentContent(fileUrl: string, fileName?: string | null): Promise<string> {
+    await this.assertSafeDocumentUrl(fileUrl);
+
+    try {
+      const response = await axios.get<ArrayBuffer>(fileUrl, {
+        responseType: "arraybuffer",
+        timeout: 15000,
+        maxContentLength: 10 * 1024 * 1024,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`Unexpected HTTP status ${response.status}`);
+      }
+
+      const buffer = Buffer.from(response.data);
+      const name = (fileName || fileUrl).toLowerCase();
+      const contentType = String(response.headers["content-type"] || "").toLowerCase();
+      const isOctetStream = contentType.includes("application/octet-stream");
+
+      if (name.endsWith(".pdf")) {
+        if (!isOctetStream && !contentType.includes("application/pdf")) {
+          throw new Error(`Unexpected content-type for PDF: ${contentType || "unknown"}`);
+        }
+        const parsed = await pdfParse(buffer);
+        return (parsed.text || "").trim();
+      }
+
+      if (name.endsWith(".docx")) {
+        if (!isOctetStream && !contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+          throw new Error(`Unexpected content-type for DOCX: ${contentType || "unknown"}`);
+        }
+        const parsed = await mammoth.extractRawText({ buffer });
+        return (parsed.value || "").trim();
+      }
+
+      if (!isOctetStream && !contentType.startsWith("text/plain")) {
+        throw new Error(`Unexpected content-type for text document: ${contentType || "unknown"}`);
+      }
+      return buffer.toString("utf8").trim();
+    } catch (error: any) {
+      throw new Error(`Document extraction failed: ${error?.message || "unknown error"}`);
+    }
+  }
+
+  private async assertSafeDocumentUrl(fileUrl: string) {
+    const parsed = new URL(fileUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("Document URL protocol must be http or https");
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      host.endsWith(".internal") ||
+      host === "host.docker.internal" ||
+      host === "metadata.google.internal" ||
+      host === "metadata" ||
+      host === "kubernetes.default.svc"
+    ) {
+      throw new Error("Document URL host is not allowed");
+    }
+
+    if (this.isPrivateIpv4(host) || this.isPrivateIpv6(host)) {
+      throw new Error("Document URL private network hosts are not allowed");
+    }
+
+    await this.assertHostResolvesToPublicIp(host);
+  }
+
+  private async assertHostResolvesToPublicIp(host: string): Promise<void> {
+    try {
+      const records = await dns.lookup(host, { all: true, verbatim: true });
+      if (!records.length) {
+        throw new Error("Document URL host did not resolve to an address");
+      }
+      for (const record of records) {
+        const address = record.address.toLowerCase();
+        if (this.isPrivateIpv4(address) || this.isPrivateIpv6(address)) {
+          throw new Error("Document URL resolved to a private network address");
+        }
+      }
+    } catch (error: any) {
+      throw new Error(`Document URL DNS validation failed: ${error?.message || "unknown error"}`);
+    }
+  }
+
+  private isPrivateIpv4(host: string): boolean {
+    const parts = host.split(".").map((p) => Number(p));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+      return false;
+    }
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    return false;
+  }
+
+  private isPrivateIpv6(host: string): boolean {
+    const normalized = host.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("::ffff:127.") ||
+      normalized.startsWith("::ffff:10.") ||
+      normalized.startsWith("::ffff:192.168.") ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:")
+    );
+  }
+
+  private calculateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+    const normalizedModel = (model || "").toLowerCase();
+    const pricing = this.resolveModelPricing(normalizedModel);
+    const inputCost = (inputTokens / 1_000_000) * pricing.inputPerMillionUsd;
+    const outputCost = (outputTokens / 1_000_000) * pricing.outputPerMillionUsd;
+    return Number((inputCost + outputCost).toFixed(6));
+  }
+
+  private resolveModelPricing(model: string): { inputPerMillionUsd: number; outputPerMillionUsd: number } {
+    const knownRates: Array<{ match: RegExp; inputPerMillionUsd: number; outputPerMillionUsd: number }> = [
+      { match: /gpt-4o-mini/, inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.60 },
+      { match: /gpt-4o/, inputPerMillionUsd: 2.50, outputPerMillionUsd: 10.00 },
+      { match: /gpt-4\.1-mini/, inputPerMillionUsd: 0.40, outputPerMillionUsd: 1.60 },
+      { match: /gpt-4\.1/, inputPerMillionUsd: 2.00, outputPerMillionUsd: 8.00 },
+      { match: /claude-3-5-haiku|claude-3-7-haiku|haiku/, inputPerMillionUsd: 0.80, outputPerMillionUsd: 4.00 },
+      { match: /claude-3-5-sonnet|claude-3-7-sonnet|sonnet/, inputPerMillionUsd: 3.00, outputPerMillionUsd: 15.00 },
+      { match: /gemini-1\.5-flash|gemini-2.*flash/, inputPerMillionUsd: 0.35, outputPerMillionUsd: 1.05 },
+      { match: /gemini-1\.5-pro|gemini-2.*pro/, inputPerMillionUsd: 3.50, outputPerMillionUsd: 10.50 },
+    ];
+
+    for (const rate of knownRates) {
+      if (rate.match.test(model)) {
+        return {
+          inputPerMillionUsd: rate.inputPerMillionUsd,
+          outputPerMillionUsd: rate.outputPerMillionUsd,
+        };
+      }
+    }
+
+    return { inputPerMillionUsd: 1.0, outputPerMillionUsd: 3.0 };
   }
 }

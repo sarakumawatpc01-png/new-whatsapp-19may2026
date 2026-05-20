@@ -36,8 +36,8 @@ export class AIOrchestrator {
       return { content: "I'm sorry, I cannot answer that question based on the safety guidelines.", confidence: 0 };
     }
 
-    // Confidence scoring
-    const confidence = await this.scoreConfidence(response.content, context, apiKey, config);
+    // Local confidence scoring to avoid an extra paid model call in the hot path
+    const confidence = this.scoreConfidence(response.content, context);
 
     return {
       content: response.content,
@@ -170,52 +170,48 @@ export class AIOrchestrator {
   }
 
   private containsProhibitedContent(text: string): boolean {
-    const prohibited = ["password", "credit card", "ssn", "social security"];
     const lower = text.toLowerCase();
-    return prohibited.some(p => lower.includes(p));
+
+    const directSecretDisclosurePatterns: RegExp[] = [
+      /\b(my|the|your)\s+password\s+is\s+\S+/i,
+      /\b(passcode|otp|cvv|cvc)\s*(is|:)\s*\d{3,8}\b/i,
+      /\bssn\s*(is|:)\s*\d{3}-?\d{2}-?\d{4}\b/i,
+      /\bsocial\s+security\s+number\s*(is|:)\s*\d{3}-?\d{2}-?\d{4}\b/i,
+      /\b(card\s+number|credit\s+card)\s*(is|:)\s*(?:\d[\s-]?){13,19}\b/i,
+    ];
+    if (directSecretDisclosurePatterns.some((pattern) => pattern.test(lower))) {
+      return true;
+    }
+
+    const maybeCard = text.replace(/[\s-]/g, "");
+    if (/\b\d{13,19}\b/.test(maybeCard)) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
    * Score confidence of the AI response (0-100).
-   * Uses a lightweight classification call to evaluate if the response is accurate.
+   * Uses local heuristics to avoid a second paid model call on each message.
    */
-  private async scoreConfidence(
-    response: string, 
-    context: AIContext, 
-    apiKey: string,
-    config: any
-  ): Promise<number> {
-    try {
-      // Use classification task model if available
-      const classConfig = this.resolveConfig(context, "classification");
-      const classProvider = AIFactory.getProvider(classConfig.provider);
-      const classKey = this.getApiKey(context, { useSharedKey: classConfig.useSharedKey });
+  private scoreConfidence(response: string, context: AIContext): number {
+    const content = (response || "").trim();
+    if (!content) return 0;
 
-      const messages: Message[] = [
-        { 
-          role: "system", 
-          content: "You are a response quality evaluator. Given a user question and an AI response, rate the confidence that the response is accurate, relevant, and complete. Respond with ONLY a number from 0 to 100." 
-        },
-        { 
-          role: "user", 
-          content: `User question: "${context.incomingMessage}"\n\nAI response: "${response.substring(0, 500)}"\n\nConfidence score (0-100):` 
-        }
-      ];
+    let score = 80;
+    if (content.length < 12) score -= 25;
+    else if (content.length < 40) score -= 10;
+    else if (content.length > 1200) score -= 5;
 
-      const result = await classProvider.sendMessage({
-        messages,
-        model: classConfig.model,
-        maxTokens: 10,
-        temperature: 0,
-        stream: false,
-      }, classKey || apiKey);
+    const lower = content.toLowerCase();
+    if (lower.includes("i don't know") || lower.includes("not sure") || lower.includes("cannot")) score -= 15;
+    if (lower.includes("http://") || lower.includes("https://")) score += 3;
+    if (this.containsProhibitedContent(content)) score = Math.min(score, 20);
 
-      const score = parseInt(result.content.replace(/\D/g, ''));
-      return isNaN(score) ? 80 : Math.max(0, Math.min(100, score));
-    } catch {
-      // Default to 80% confidence if scoring fails
-      return 80;
-    }
+    if (!context.incomingMessage?.trim()) score -= 20;
+
+    return Math.max(0, Math.min(100, score));
   }
 
   async generateEmbeddings(text: string, context: AIContext): Promise<number[]> {
