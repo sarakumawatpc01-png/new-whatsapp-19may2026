@@ -6,6 +6,15 @@ import { AllExceptionsFilter } from "./filters/all-exceptions.filter"
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true })
+
+  app.use((req, res, next) => {
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    next();
+  });
   
   app.enableCors({
     origin: [

@@ -28,6 +28,7 @@ export class AIProcessor {
   async handleAIProcessing(job: Job<any>) {
     const { tenantId, conversationId, numberId } = job.data;
     this.logger.log(`Processing AI reply for conversation: ${conversationId}`);
+    const startedAt = Date.now();
 
     let messageId: string | null = null;
     try {
@@ -118,17 +119,23 @@ export class AIProcessor {
 
       // Log Usage
       if (result.usage) {
+        const modelName = tenantConfig.model || globalConfigRaw?.modelChat || "UNKNOWN";
+        const inputTokens = Number(result.usage.promptTokens || 0);
+        const outputTokens = Number(result.usage.completionTokens || 0);
+        const totalTokens = Number(result.usage.totalTokens || (inputTokens + outputTokens));
+        const costUsd = this.calculateCostUsd(modelName, inputTokens, outputTokens);
+
         await this.prisma.aIUsageLog.create({
           data: {
             tenantId,
             conversationId,
             provider: (tenantConfig.provider || globalConfigRaw?.provider || "OPENROUTER") as any,
-            model: tenantConfig.model || globalConfigRaw?.modelChat || "UNKNOWN",
-            inputTokens: result.usage.promptTokens,
-            outputTokens: result.usage.completionTokens,
-            totalTokens: result.usage.totalTokens,
-            costUsd: 0, 
-            latencyMs: 0,
+            model: modelName,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            costUsd,
+            latencyMs: Date.now() - startedAt,
           },
         });
       }
@@ -366,5 +373,37 @@ export class AIProcessor {
       normalized.startsWith("fd") ||
       normalized.startsWith("fe80:")
     );
+  }
+
+  private calculateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+    const normalizedModel = (model || "").toLowerCase();
+    const pricing = this.resolveModelPricing(normalizedModel);
+    const inputCost = (inputTokens / 1_000_000) * pricing.inputPerMillionUsd;
+    const outputCost = (outputTokens / 1_000_000) * pricing.outputPerMillionUsd;
+    return Number((inputCost + outputCost).toFixed(6));
+  }
+
+  private resolveModelPricing(model: string): { inputPerMillionUsd: number; outputPerMillionUsd: number } {
+    const knownRates: Array<{ match: RegExp; inputPerMillionUsd: number; outputPerMillionUsd: number }> = [
+      { match: /gpt-4o-mini/, inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.60 },
+      { match: /gpt-4o/, inputPerMillionUsd: 2.50, outputPerMillionUsd: 10.00 },
+      { match: /gpt-4\.1-mini/, inputPerMillionUsd: 0.40, outputPerMillionUsd: 1.60 },
+      { match: /gpt-4\.1/, inputPerMillionUsd: 2.00, outputPerMillionUsd: 8.00 },
+      { match: /claude-3-5-haiku|claude-3-7-haiku|haiku/, inputPerMillionUsd: 0.80, outputPerMillionUsd: 4.00 },
+      { match: /claude-3-5-sonnet|claude-3-7-sonnet|sonnet/, inputPerMillionUsd: 3.00, outputPerMillionUsd: 15.00 },
+      { match: /gemini-1\.5-flash|gemini-2.*flash/, inputPerMillionUsd: 0.35, outputPerMillionUsd: 1.05 },
+      { match: /gemini-1\.5-pro|gemini-2.*pro/, inputPerMillionUsd: 3.50, outputPerMillionUsd: 10.50 },
+    ];
+
+    for (const rate of knownRates) {
+      if (rate.match.test(model)) {
+        return {
+          inputPerMillionUsd: rate.inputPerMillionUsd,
+          outputPerMillionUsd: rate.outputPerMillionUsd,
+        };
+      }
+    }
+
+    return { inputPerMillionUsd: 1.0, outputPerMillionUsd: 3.0 };
   }
 }

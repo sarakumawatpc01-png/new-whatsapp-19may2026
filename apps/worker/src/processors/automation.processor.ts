@@ -177,6 +177,7 @@ export class AutomationProcessor {
           return { success: true };
 
         case "webhook_call":
+          this.assertSafeWebhookUrl(node.data.url);
           const response = await axios.post(node.data.url, {
             ...context,
             timestamp: new Date().toISOString()
@@ -218,5 +219,54 @@ export class AutomationProcessor {
       }
       return value !== undefined ? String(value) : match;
     });
+  }
+
+  private assertSafeWebhookUrl(rawUrl: string) {
+    if (!rawUrl) {
+      throw new Error("Webhook URL is required");
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      throw new Error("Invalid webhook URL");
+    }
+
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("Webhook URL must use http or https");
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local")) {
+      throw new Error("Webhook URL host is not allowed");
+    }
+
+    if (this.isPrivateIpv4(host) || this.isPrivateIpv6(host)) {
+      throw new Error("Webhook URL private network hosts are not allowed");
+    }
+  }
+
+  private isPrivateIpv4(host: string): boolean {
+    const parts = host.split(".").map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+      return false;
+    }
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    return false;
+  }
+
+  private isPrivateIpv6(host: string): boolean {
+    const normalized = host.toLowerCase();
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:")
+    );
   }
 }
